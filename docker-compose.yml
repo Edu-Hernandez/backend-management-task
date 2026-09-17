@@ -1,0 +1,38 @@
+services:
+    backend:
+        build:
+            context: .
+            dockerfile: Dockerfile
+            target: development
+        container_name: task-management-backend
+        ports:
+            - "3005:3005"
+        env_file:
+            - .env
+        depends_on:
+            db:
+                condition: service_healthy
+        volumes:
+            - .:/app
+            - /app/node_modules
+        command: pnpm start:dev
+
+    db:
+        image: postgres:17-alpine
+        container_name: task-management-db
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: ${POSTGRES_USER}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            POSTGRES_DB: ${POSTGRES_DB}
+        ports:
+            - "5432:5432"
+        volumes:
+            - db-data:/var/lib/postgresql/data
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+volumes:
+    db-data:
