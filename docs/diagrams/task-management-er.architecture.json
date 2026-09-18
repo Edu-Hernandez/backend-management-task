@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Task Management — modelo de datos",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "identity",
+        "label": "Identidad y acceso",
+        "focus": ["users", "refresh_tokens", "user_roles", "roles", "role_permissions", "permissions"],
+        "note": "Usuarios, sesiones y RBAC de sistema viven en un solo bounded context."
+      },
+      {
+        "id": "projects",
+        "label": "Proyectos",
+        "focus": ["users", "project_members", "projects"],
+        "note": "La membresía es la frontera: una tarea solo se asigna a quien ya pertenece al proyecto."
+      },
+      {
+        "id": "work",
+        "label": "Trabajo",
+        "focus": ["projects", "tasks", "comments"],
+        "note": "Tareas y comentarios forman el aggregate de trabajo dentro del proyecto."
+      }
+    ]
+  },
+  "components": [
+    { "id": "roles", "type": "database", "label": "roles", "sublabel": "RBAC de sistema", "pos": [80, 70], "size": [150, 56] },
+    { "id": "role_permissions", "type": "database", "label": "role_permissions", "sublabel": "N:N rol–permiso", "pos": [310, 70], "size": [170, 56], "tag": "junction" },
+    { "id": "permissions", "type": "database", "label": "permissions", "sublabel": "users.list, …", "pos": [560, 70], "size": [150, 56] },
+    { "id": "user_roles", "type": "database", "label": "user_roles", "sublabel": "N:N usuario–rol", "pos": [80, 190], "size": [150, 56], "tag": "junction" },
+    { "id": "users", "type": "database", "label": "users", "sublabel": "email único + estado", "pos": [80, 330], "size": [160, 64], "tag": "aggregate" },
+    { "id": "refresh_tokens", "type": "security", "label": "refresh_tokens", "sublabel": "hash + revocación", "pos": [80, 490], "size": [170, 64] },
+    { "id": "project_members", "type": "database", "label": "project_members", "sublabel": "rol de proyecto", "pos": [360, 330], "size": [170, 64] },
+    { "id": "projects", "type": "database", "label": "projects", "sublabel": "owner + archivo", "pos": [620, 330], "size": [150, 64] },
+    { "id": "tasks", "type": "database", "label": "tasks", "sublabel": "estado + assignee", "pos": [880, 330], "size": [150, 64] },
+    { "id": "comments", "type": "database", "label": "comments", "sublabel": "autor = editor", "pos": [880, 490], "size": [150, 64] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Identity", "wraps": ["roles", "role_permissions", "permissions", "user_roles", "users", "refresh_tokens"] },
+    { "kind": "region", "label": "Projects", "wraps": ["project_members", "projects"] },
+    { "kind": "region", "label": "Tasks", "wraps": ["tasks", "comments"] }
+  ],
+  "connections": [
+    { "id": "roles-to-rp", "from": "roles", "to": "role_permissions", "label": "define" },
+    { "id": "rp-to-perms", "from": "role_permissions", "to": "permissions", "label": "otorga" },
+    { "id": "users-to-ur", "from": "users", "to": "user_roles", "label": "tiene rol", "fromSide": "top", "toSide": "bottom" },
+    { "id": "ur-to-roles", "from": "user_roles", "to": "roles", "label": "referencia", "fromSide": "top", "toSide": "bottom" },
+    { "id": "users-to-tokens", "from": "users", "to": "refresh_tokens", "label": "emite sesión", "fromSide": "bottom", "toSide": "top" },
+    { "id": "users-to-members", "from": "users", "to": "project_members", "label": "participa" },
+    { "id": "members-to-projects", "from": "project_members", "to": "projects", "label": "en proyecto" },
+    { "id": "projects-to-tasks", "from": "projects", "to": "tasks", "label": "agrupa" },
+    { "id": "tasks-to-comments", "from": "tasks", "to": "comments", "label": "recibe", "fromSide": "bottom", "toSide": "top", "labelDy": 24 }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "3 contextos, no 7 módulos", "items": ["Auth, Users, Roles y Permissions son Identity", "Comments no es un bounded context propio"] },
+    { "dot": "emerald", "title": "Integridad en esquema", "items": ["email único, soft delete, owner_id en projects", "UNIQUE (project_id, user_id) en miembros"] },
+    { "dot": "rose", "title": "Reglas de dominio", "items": ["assignee debe ser miembro del proyecto", "tarea DONE no se modifica; comentario solo lo edita su autor"] }
+  ]
+}

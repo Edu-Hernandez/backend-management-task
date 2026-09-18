@@ -1,21 +1,200 @@
 // use prisma-8
 
-model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  username  String?
-  name      String?
-  posts     Post[]
-  createdAt TimestamptzString @default(now())
-  updatedAt temporal.updatedAtString()
+enum UserStatus {
+  @@type("pg/text@1")
+  ACTIVE   = "ACTIVE"
+  DISABLED = "DISABLED"
 }
 
-model Post {
-  id        Int      @id @default(autoincrement())
-  title     String
-  content   String?
-  author    User     @relation(fields: [authorId], references: [id])
-  authorId  Int
+enum ProjectStatus {
+  @@type("pg/text@1")
+  ACTIVE   = "ACTIVE"
+  ARCHIVED = "ARCHIVED"
+}
+
+enum ProjectMemberRole {
+  @@type("pg/text@1")
+  OWNER  = "OWNER"
+  ADMIN  = "ADMIN"
+  MEMBER = "MEMBER"
+  VIEWER = "VIEWER"
+}
+
+enum TaskStatus {
+  @@type("pg/text@1")
+  TODO        = "TODO"
+  IN_PROGRESS = "IN_PROGRESS"
+  DONE        = "DONE"
+  CANCELLED   = "CANCELLED"
+}
+
+enum TaskPriority {
+  @@type("pg/text@1")
+  LOW    = "LOW"
+  MEDIUM = "MEDIUM"
+  HIGH   = "HIGH"
+  URGENT = "URGENT"
+}
+
+model User {
+  id           Uuid              @id @default(uuid(7))
+  email        String            @unique
+  passwordHash String
+  fullName     String
+  status       UserStatus        @default(ACTIVE)
+  createdAt    TimestamptzString @default(now())
+  updatedAt    temporal.updatedAtString()
+  deletedAt    TimestamptzString?
+
+  refreshTokens         RefreshToken[]
+  roles                 Role[]
+  roleAssignmentsMade   UserRole[]      @relation("UserRoleAssignedBy")
+  ownedProjects         Project[]       @relation("ProjectOwner")
+  createdProjects       Project[]       @relation("ProjectCreator")
+  memberships           ProjectMember[] @relation("ProjectMemberUser")
+  membershipsAdded      ProjectMember[] @relation("ProjectMemberAddedBy")
+  assignedTasks         Task[]          @relation("TaskAssignee")
+  createdTasks          Task[]          @relation("TaskCreator")
+  comments              Comment[]
+}
+
+model RefreshToken {
+  id        Uuid              @id @default(uuid(7))
+  userId    Uuid
+  tokenHash String            @unique
+  expiresAt TimestamptzString
+  revokedAt TimestamptzString?
+  userAgent String?
+  createdAt TimestamptzString @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Role {
+  id          Uuid              @id @default(uuid(7))
+  name        String            @unique
+  description String?
+  isSystem    Boolean           @default(false)
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+
+  users       User[]
+  permissions Permission[]
+}
+
+model Permission {
+  id          Uuid   @id @default(uuid(7))
+  code        String @unique
+  description String?
+  resource    String
+  action      String
+  createdAt   TimestamptzString @default(now())
+
+  roles Role[]
+
+  @@unique([resource, action])
+}
+
+model UserRole {
+  userId       Uuid
+  roleId       Uuid
+  assignedAt   TimestamptzString @default(now())
+  assignedById Uuid?
+
+  user       User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  assignedBy User? @relation("UserRoleAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  roleId       Uuid
+  permissionId Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model Project {
+  id          Uuid              @id @default(uuid(7))
+  name        String
+  description String?
+  status      ProjectStatus     @default(ACTIVE)
+  ownerId     Uuid
+  createdById Uuid
+  createdAt   TimestamptzString @default(now())
+  updatedAt   temporal.updatedAtString()
+  archivedAt  TimestamptzString?
+  deletedAt   TimestamptzString?
+
+  owner     User            @relation("ProjectOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  createdBy User            @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  members   ProjectMember[]
+  tasks     Task[]
+
+  @@index([ownerId])
+  @@index([status])
+}
+
+model ProjectMember {
+  id        Uuid              @id @default(uuid(7))
+  projectId Uuid
+  userId    Uuid
+  role      ProjectMemberRole
+  addedAt   TimestamptzString @default(now())
+  addedById Uuid?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation("ProjectMemberUser", fields: [userId], references: [id], onDelete: Restrict)
+  addedBy User?   @relation("ProjectMemberAddedBy", fields: [addedById], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+}
+
+model Task {
+  id           Uuid              @id @default(uuid(7))
+  projectId    Uuid
+  title        String
+  description  String?
+  status       TaskStatus        @default(TODO)
+  priority     TaskPriority      @default(MEDIUM)
+  assigneeId   Uuid?
+  createdById  Uuid
+  dueDate      DateString?
+  completedAt  TimestamptzString?
+  createdAt    TimestamptzString @default(now())
+  updatedAt    temporal.updatedAtString()
+  deletedAt    TimestamptzString?
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee  User?     @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdBy User      @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  comments  Comment[]
+
+  @@index([projectId, status])
+  @@index([assigneeId])
+}
+
+model Comment {
+  id        Uuid              @id @default(uuid(7))
+  taskId    Uuid
+  authorId  Uuid
+  body      String
   createdAt TimestamptzString @default(now())
   updatedAt temporal.updatedAtString()
+  deletedAt TimestamptzString?
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([authorId])
 }
