@@ -17,8 +17,4 @@ export class CreateProjectDto {
     @IsNotEmpty()
     @IsUUID()
     ownerId: string;
-
-    @IsNotEmpty()
-    @IsUUID()
-    createdById: string;
 }

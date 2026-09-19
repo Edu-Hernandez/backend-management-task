@@ -1,12 +1,11 @@
 import { Module } from "@nestjs/common";
-import { ProjectController } from "./presentation/controllers/project.controller";
-import { CreateProjectUseCase } from "./application/use-cases/create-project.use-case";
-import { PROJECT_ENTITY } from "./domain/entities/project.entity";
-import { PrismaProjectRepository } from "./infrastructure/persistence/prisma-project.repository";
+import { CreateProjectUseCase } from "./application/use-cases/create-project.use-case.js";
+import { PROJECT_ENTITY } from "./domain/entities/project.entity.js";
+import { PrismaProjectRepository } from "./infrastructure/persistence/prisma-project.repository.js";
+import { ProjectController } from "./presentation/controllers/project.controller.js";
 
 @Module({
     imports: [
-        CreateProjectUseCase,
     ],
     controllers: [ProjectController],
     providers: [

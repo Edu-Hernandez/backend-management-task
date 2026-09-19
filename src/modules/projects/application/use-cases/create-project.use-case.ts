@@ -15,7 +15,7 @@ export class CreateProjectUseCase {
             name: dto.name,
             description: dto.description,
             ownerId: dto.ownerId,
-            createdById: dto.createdById,
-        }, userId);
+        }, 
+        userId);
     }
 }
